@@ -1,0 +1,85 @@
+# Helix Arm: single source of truth for geometry, limits and top-level ratings.
+# Units: SI (metres, radians, kilograms, seconds, volts). Conventions: docs/adr/0001.
+#
+# Frames: base frame at the centre of the base plate underside, +z up, +x forward (same as vla-arm).
+# Zero pose: arm stretched horizontally along +x at shoulder height, flange facing +x, gripper jaws
+# closing along the world y axis. Each joint rotates about `axis` in its parent link frame (aligned
+# with the base frame at zero pose); `origin` is the joint position relative to the previous joint.
+# Right-hand rule: positive rotation about +y moves +x toward -z (positive pitch = DOWN); positive
+# rotation about +z moves +x toward +y; positive rotation about +x moves +y toward +z.
+#
+# M0 values are the plan's first estimates (docs/PLAN.md sec. 3). Limits and lengths are frozen in M1
+# (kinematics, workspace, collision) and the module sizes in M2 (dynamics + actuator sizing).
+
+version: "0.1"            # bump on every reviewed change; M1 freezes 1.0
+
+joints:
+  - name: base_yaw          # J1, module L
+    axis: [0, 0, 1]
+    origin: [0.0, 0.0, 0.060]     # plate underside -> J1 output flange
+    limits: [-2.80, 2.80]
+    vmax: 2.0
+    module: L
+  - name: shoulder_pitch    # J2, module L
+    axis: [0, 1, 0]
+    origin: [0.0, 0.0, 0.120]     # shoulder axis 0.180 m above the plate underside
+    limits: [-1.90, 1.20]         # -pi/2 = upper arm straight up; M1 sets the down limit from the base model
+    vmax: 2.0
+    module: L
+  - name: elbow_pitch       # J3, module M
+    axis: [0, 1, 0]
+    origin: [0.260, 0.0, 0.0]     # upper arm
+    limits: [-2.60, 2.60]
+    vmax: 2.5
+    module: M
+  - name: forearm_roll      # J4, module S (inside the forearm)
+    axis: [1, 0, 0]
+    origin: [0.100, 0.0, 0.0]
+    limits: [-3.00, 3.00]
+    vmax: 4.0
+    module: S
+  - name: wrist_pitch       # J5, module S; its origin is the wrist centre
+    axis: [0, 1, 0]
+    origin: [0.160, 0.0, 0.0]     # elbow -> wrist centre = 0.260 m
+    limits: [-2.00, 2.00]
+    vmax: 4.0
+    module: S
+  - name: wrist_roll        # J6, module S (flange)
+    axis: [1, 0, 0]
+    origin: [0.040, 0.0, 0.0]
+    limits: [-3.10, 3.10]
+    vmax: 6.0
+    module: S
+
+tool:
+  tcp: [0.040, 0.0, 0.0]          # between the fingertips, in the wrist_roll frame (wrist centre -> TCP 0.080 m)
+
+gripper:
+  name: gripper             # parallel jaws on an S module
+  stroke_m: [0.0, 0.080]    # jaw gap, closed .. open
+  vmax_m_s: 0.10
+  module: S
+
+ratings:
+  reach_m: 0.600            # shoulder axis -> TCP at zero pose
+  wrist_centre_reach_m: 0.520
+  payload_kg: 1.0           # continuous at full reach
+  arm_mass_max_kg: 6.0      # without the base plate
+  tcp_speed_m_s: 1.0        # peak
+  repeatability_m: 0.0003   # in sim, with modelled backlash and encoder noise
+  bus_voltage_v: 48.0       # ADR 0002 (plan D3)
+
+rates_hz:
+  foc: [20000, 40000]
+  joint_position: [1000, 2000]
+  host: 1000
+  canfd_cycle: 1000
+
+modules:                    # first sizing (plan sec. 3); M2 replaces these with the sizing loop's result
+  L: {reducer: cycloidal, ratio: 20, peak_torque_nm: 35.0}
+  M: {reducer: cycloidal, ratio: 20, peak_torque_nm: 20.0}
+  S: {reducer: planetary, ratio: 10, peak_torque_nm: 5.0}
+
+vla_arm_bridge:             # protocol v1 clients see vla-arm's 6 channels (docs/adr/0001)
+  order: [base_yaw, shoulder_pitch, elbow_pitch, wrist_pitch, wrist_roll, gripper]
+  held: {forearm_roll: 0.0} # J4 is held here for v1 clients
