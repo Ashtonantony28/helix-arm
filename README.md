@@ -7,6 +7,21 @@ FOC firmware, rigid-body dynamics and a firmware-in-the-loop MuJoCo twin. Its hu
 
 The plan is in [docs/PLAN.md](docs/PLAN.md). Nothing has been built or measured on hardware.
 
+## Demo
+
+![Closed-form IK on a pick-and-place path](docs/media/ik-demo.gif)
+
+The M1 kinematics drive a tool-down pick-and-place path (`python scripts/ik_demo.py`, [MP4](docs/media/ik-demo.mp4)).
+At every frame the closed-form IK picks the in-limit branch nearest the previous one. Before the frame is
+drawn, the script checks that forward kinematics reproduces the target pose (error < 1e-9), that every joint
+is inside its spec limit, and that the capsule envelope is collision-free with the 5 mm margin. The arm is
+drawn as its M1 collision capsules, because CAD comes in M3. This is kinematics only, with no dynamics or
+hardware.
+
+| Reachable workspace (arm plane) | Manipulability, gripper pointing down |
+|---|---|
+| ![workspace](docs/kinematics/workspace_rz.png) | ![manipulability](docs/kinematics/manipulability_rz.png) |
+
 ## Status
 
 | | |
