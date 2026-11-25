@@ -8,10 +8,10 @@
 # Right-hand rule: positive rotation about +y moves +x toward -z (positive pitch = DOWN); positive
 # rotation about +z moves +x toward +y; positive rotation about +x moves +y toward +z.
 #
-# M0 values are the plan's first estimates (docs/PLAN.md sec. 3). Limits and lengths are frozen in M1
-# (kinematics, workspace, collision) and the module sizes in M2 (dynamics + actuator sizing).
+# Geometry, limits and the collision envelope were frozen in M1 (ADR 0003; derivation in
+# docs/kinematics/). Module sizes are first estimates until M2 (dynamics + actuator sizing).
 
-version: "0.1"            # bump on every reviewed change; M1 freezes 1.0
+version: "1.0"            # frozen in M1 (ADR 0003); bump on every reviewed change
 
 joints:
   - name: base_yaw          # J1, module L
@@ -23,13 +23,13 @@ joints:
   - name: shoulder_pitch    # J2, module L
     axis: [0, 1, 0]
     origin: [0.0, 0.0, 0.120]     # shoulder axis 0.180 m above the plate underside
-    limits: [-1.90, 1.20]         # -pi/2 = upper arm straight up; M1 sets the down limit from the base model
+    limits: [-1.90, 0.75]         # -pi/2 = upper arm straight up; +0.75 from the envelope (upper arm onto the J1 module)
     vmax: 2.0
     module: L
   - name: elbow_pitch       # J3, module M
     axis: [0, 1, 0]
-    origin: [0.260, 0.0, 0.0]     # upper arm
-    limits: [-2.60, 2.60]
+    origin: [0.260, 0.080, 0.0]   # upper arm; forearm runs 80 mm to the left of it (elbow offset, ADR 0003)
+    limits: [-2.90, 2.90]         # from the envelope: wrist onto the upper arm at +-2.95 (ADR 0003)
     vmax: 2.5
     module: M
   - name: forearm_roll      # J4, module S (inside the forearm)
@@ -41,7 +41,7 @@ joints:
   - name: wrist_pitch       # J5, module S; its origin is the wrist centre
     axis: [0, 1, 0]
     origin: [0.160, 0.0, 0.0]     # elbow -> wrist centre = 0.260 m
-    limits: [-2.00, 2.00]
+    limits: [-1.80, 1.80]         # from the envelope: gripper onto the forearm end at +-1.82
     vmax: 4.0
     module: S
   - name: wrist_roll        # J6, module S (flange)
@@ -61,7 +61,7 @@ gripper:
   module: S
 
 ratings:
-  reach_m: 0.600            # shoulder axis -> TCP at zero pose
+  reach_m: 0.600            # shoulder axis -> TCP at zero pose, in the arm (x-z) plane
   wrist_centre_reach_m: 0.520
   payload_kg: 1.0           # continuous at full reach
   arm_mass_max_kg: 6.0      # without the base plate
@@ -83,3 +83,22 @@ modules:                    # first sizing (plan sec. 3); M2 replaces these with
 vla_arm_bridge:             # protocol v1 clients see vla-arm's 6 channels (docs/adr/0001)
   order: [base_yaw, shoulder_pitch, elbow_pitch, wrist_pitch, wrist_roll, gripper]
   held: {forearm_roll: 0.0} # J4 is held here for v1 clients
+
+collision:                  # M1 envelope (ADR 0003): each link's CAD (M3) must fit inside its capsules
+  margin_m: 0.005           # required clearance between capsules and to the table
+  table_z: 0.0              # the arm stands on a table at the base plate underside
+  capsules:                 # a, b: segment ends in the link frame; r: radius
+    - {name: base_column,    link: base,           a: [0.0, 0.0, 0.0],      b: [0.0, 0.0, 0.040],    r: 0.060}  # J1 L module
+    - {name: turret_riser,   link: base_yaw,       a: [0.0, -0.065, 0.0],   b: [0.0, -0.065, 0.020], r: 0.050}  # under the J2 module
+    - {name: shoulder_module, link: base_yaw,      a: [0.0, -0.090, 0.120], b: [0.0, -0.035, 0.120], r: 0.055}  # J2 L module, right of the upper arm
+    - {name: upper_arm,      link: shoulder_pitch, a: [0.030, 0.0, 0.0],     b: [0.260, 0.0, 0.0],    r: 0.035}  # starts outside the J2 flange (inside shoulder_module)
+    - {name: elbow_module,   link: shoulder_pitch, a: [0.260, 0.0, 0.0],    b: [0.260, 0.080, 0.0],  r: 0.045}  # J3 M module between the links
+    - {name: forearm,        link: elbow_pitch,    a: [0.0, 0.0, 0.0],      b: [0.180, 0.0, 0.0],    r: 0.035}  # J4 S module inside; ends 80 mm short of the wrist centre (J5 clevis)
+    - {name: wrist_module,   link: wrist_pitch,    a: [0.0, -0.030, 0.0],   b: [0.0, 0.030, 0.0],    r: 0.035}  # J5 S module
+    - {name: gripper,        link: wrist_roll,     a: [0.0, 0.0, 0.0],      b: [0.030, 0.0, 0.0],    r: 0.040}  # J6 S module + gripper body
+  skip:                     # pairs that touch at a joint by construction
+    - [base_column, turret_riser]      # J1 bearing
+    - [shoulder_module, upper_arm]     # J2 output flange
+    - [elbow_module, forearm]          # J3 output flange
+    - [forearm, wrist_module]          # J5 housing on the forearm end
+    - [wrist_module, gripper]          # J6 on the J5 output

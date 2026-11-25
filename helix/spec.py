@@ -83,9 +83,13 @@ def parse(raw: dict) -> Spec:
                f"{n}: a spherical wrist needs a roll axis along the link x line")
     _check(np.allclose(spec.joint("wrist_pitch").origin[1:], 0.0), "wrist_pitch must sit on the link x line")
     r = raw["ratings"]
-    reach = float(np.linalg.norm(zero_pose_points(spec)["tcp"] - zero_pose_points(spec)["shoulder_pitch"]))
+    # reach is measured in the arm plane (x-z), perpendicular to the shoulder axis: the elbow's lateral
+    # offset (ADR 0003) moves the arm sideways but does not lengthen it
+    zp = zero_pose_points(spec)
+    xz = [0, 2]
+    reach = float(np.linalg.norm((zp["tcp"] - zp["shoulder_pitch"])[xz]))
     _check(abs(reach - r["reach_m"]) < 1e-9, f"reach {reach} != ratings.reach_m {r['reach_m']}")
-    wc = float(np.linalg.norm(zero_pose_points(spec)["wrist_pitch"] - zero_pose_points(spec)["shoulder_pitch"]))
+    wc = float(np.linalg.norm((zp["wrist_pitch"] - zp["shoulder_pitch"])[xz]))
     _check(abs(wc - r["wrist_centre_reach_m"]) < 1e-9, f"wrist centre reach {wc} != {r['wrist_centre_reach_m']}")
     b = raw["vla_arm_bridge"]
     _check(set(b["order"][:-1]) | set(b["held"]) == set(JOINT_ORDER) and b["order"][-1] == "gripper",
