@@ -22,8 +22,8 @@ def test_loads_in_adr_order():
 def test_zero_pose_matches_plan_numbers(raw):
     p = zero_pose_points(load_spec())
     assert p["shoulder_pitch"] == pytest.approx([0.0, 0.0, 0.180])
-    assert p["wrist_pitch"] == pytest.approx([0.520, 0.0, 0.180])     # wrist centre
-    assert p["tcp"] == pytest.approx([0.600, 0.0, 0.180])             # 600 mm reach (plan sec. 3)
+    assert p["wrist_pitch"] == pytest.approx([0.520, 0.080, 0.180])   # wrist centre, 80 mm elbow offset (ADR 0003)
+    assert p["tcp"] == pytest.approx([0.600, 0.080, 0.180])           # 600 mm reach in the arm plane (plan sec. 3)
 
 
 def test_positive_pitch_is_down_and_positive_yaw_is_left():
@@ -38,10 +38,10 @@ def test_shoulder_up_and_elbow_fold_hand_values():
     s = load_spec()
     q = np.zeros(6); q[1] = -math.pi / 2                              # upper arm straight up
     t = fk(s, q)["tcp"][:3, 3]
-    assert t == pytest.approx([0.0, 0.0, 0.180 + 0.600])
+    assert t == pytest.approx([0.0, 0.080, 0.180 + 0.600])
     q = np.zeros(6); q[2] = math.pi / 2                               # forearm straight down
     t = fk(s, q)["tcp"][:3, 3]
-    assert t == pytest.approx([0.260, 0.0, 0.180 - 0.340])
+    assert t == pytest.approx([0.260, 0.080, 0.180 - 0.340])
 
 
 def test_spherical_wrist_centre_independent_of_wrist_joints():
